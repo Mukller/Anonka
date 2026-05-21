@@ -1,33 +1,39 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, F
 from aiogram.fsm.storage.memory import MemoryStorage
-from dotenv import load_dotenv
-import os
+from aiogram.types import Update
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from .models import Base
 from .handlers import router
+from .config import BOT_TOKEN, GROUP_CHAT_ID, GROUP_TOPIC_ID, DATABASE_URL
 
-load_dotenv()
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
-GROUP_TOPIC_ID = int(os.getenv("GROUP_TOPIC_ID", 0)) or None
-
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME", "anonka")
-
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
-
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 Base.metadata.create_all(bind=engine)
 SessionLocal = sessionmaker(bind=engine)
+
+
+class DatabaseMiddleware:
+    def __init__(self, db_factory):
+        self.db_factory = db_factory
+
+    async def __call__(self, handler, event, data):
+        db = self.db_factory()
+        data["db"] = db
+        data["bot"] = data.get("bot")
+        data["group_chat_id"] = GROUP_CHAT_ID
+        data["group_topic_id"] = GROUP_TOPIC_ID
+        try:
+            return await handler(event, data)
+        finally:
+            db.close()
 
 
 async def main():
@@ -35,14 +41,27 @@ async def main():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
+    dp.message.middleware(DatabaseMiddleware(SessionLocal))
+    dp.callback_query.middleware(DatabaseMiddleware(SessionLocal))
+
     dp.include_router(router)
 
+    logger.info("Bot started successfully")
+    logger.info(f"Group Chat ID: {GROUP_CHAT_ID}")
+    logger.info(f"Group Topic ID: {GROUP_TOPIC_ID}")
+
     try:
-        logger.info("Starting bot...")
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    except Exception as e:
+        logger.error(f"Error: {e}")
     finally:
         await bot.session.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
