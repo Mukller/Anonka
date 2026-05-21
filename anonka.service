@@ -1,0 +1,18 @@
+[Unit]
+Description=Telegram Anonymous Thread Bot
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=anton
+WorkingDirectory=/home/anton/anonka
+Environment="PATH=/home/anton/anonka/venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/anton/anonka/venv/bin/python -m backend.app.main
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
