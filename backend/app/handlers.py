@@ -148,6 +148,18 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
         else:
             # Обычное новое анонимное сообщение
             thread = get_or_create_thread(db, user.id, group_chat_id)
+
+            # Создаём новую тему в группе если её ещё нет
+            if not thread.topic_id:
+                topic_name = message.from_user.username or f"User{message.from_user.id}"
+                try:
+                    topic = await bot.create_forum_topic(group_chat_id, topic_name)
+                    thread.topic_id = topic.message_thread_id
+                    db.commit()
+                    logger.info(f"Created forum topic {thread.topic_id} for user {message.from_user.id}")
+                except Exception as e:
+                    logger.error(f"Failed to create forum topic: {e}")
+
             attachments = extract_attachments(message)
 
             db_message = DBMessage(
