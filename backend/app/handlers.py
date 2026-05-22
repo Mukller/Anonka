@@ -6,6 +6,7 @@ from datetime import datetime
 from .models import User, Thread, Message as DBMessage, Response
 import json
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -112,7 +113,17 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
         else:
             await bot.send_message(group_chat_id, thread_text, parse_mode="HTML", reply_markup=keyboard, message_thread_id=thread.topic_id)
 
-        await message.answer("✅ Ваше сообщение отправлено!", parse_mode="HTML")
+        sent_message = await message.answer("✅ Сообщение успешно отправлено", parse_mode="HTML")
+
+        # Delete the message after 5 seconds
+        async def delete_message():
+            await asyncio.sleep(5)
+            try:
+                await sent_message.delete()
+            except Exception as e:
+                logger.warning(f"Failed to delete success message: {e}")
+
+        asyncio.create_task(delete_message())
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         await message.answer(f"❌ Ошибка: {str(e)}", parse_mode="HTML")
