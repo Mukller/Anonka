@@ -67,7 +67,6 @@ def get_message_keyboard(message_id: int):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="💬 Ответить", callback_data=f"reply_{message_id}"),
-            InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"delete_{message_id}"),
         ]
     ])
     return keyboard
