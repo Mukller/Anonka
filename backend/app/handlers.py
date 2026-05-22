@@ -178,14 +178,22 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
             thread_text = create_thread_message(db_message, user.username or f"User{user.telegram_id}")
             keyboard = get_message_keyboard(db_message.id)
 
+            # Отправляем в топик если он существует
+            send_kwargs = {
+                "parse_mode": "HTML",
+                "reply_markup": keyboard
+            }
+            if thread.topic_id:
+                send_kwargs["message_thread_id"] = thread.topic_id
+
             if message.photo:
-                await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=thread_text, parse_mode="HTML", reply_markup=keyboard, message_thread_id=thread.topic_id)
+                await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=thread_text, **send_kwargs)
             elif message.video:
-                await bot.send_video(group_chat_id, message.video.file_id, caption=thread_text, parse_mode="HTML", reply_markup=keyboard, message_thread_id=thread.topic_id)
+                await bot.send_video(group_chat_id, message.video.file_id, caption=thread_text, **send_kwargs)
             elif message.document:
-                await bot.send_document(group_chat_id, message.document.file_id, caption=thread_text, parse_mode="HTML", reply_markup=keyboard, message_thread_id=thread.topic_id)
+                await bot.send_document(group_chat_id, message.document.file_id, caption=thread_text, **send_kwargs)
             else:
-                await bot.send_message(group_chat_id, thread_text, parse_mode="HTML", reply_markup=keyboard, message_thread_id=thread.topic_id)
+                await bot.send_message(group_chat_id, thread_text, **send_kwargs)
 
             sent_message = await message.answer("✅ Сообщение успешно отправлено", parse_mode="HTML")
 
