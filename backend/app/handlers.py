@@ -75,8 +75,10 @@ def get_message_keyboard(message_id: int):
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
-        "👋 <b>Telegram Anonymous Thread Bot</b>\n\n"
-        "📝 Отправьте сообщение и оно будет опубликовано в группе анонимно!",
+        "<b>Здравствуйте!</b>\n\n"
+        "Отправьте своё сообщение и мы ответим в ближайшее время.\n"
+        "Это полностью анонимно 🎭\n\n"
+        "Создано с помощью @AnonCreatorBot (http://t.me/AnonCreatorBot?start=v1llanel_bot)",
         parse_mode="HTML"
     )
 
