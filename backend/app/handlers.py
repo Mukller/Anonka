@@ -157,8 +157,11 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                     thread.topic_id = topic.message_thread_id
                     db.commit()
                     logger.info(f"Created forum topic {thread.topic_id} for user {message.from_user.id}")
+                    # Даём время на создание топика
+                    await asyncio.sleep(0.5)
                 except Exception as e:
                     logger.error(f"Failed to create forum topic: {e}")
+                    thread.topic_id = None
 
             attachments = extract_attachments(message)
 
