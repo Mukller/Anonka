@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from aiogram import Bot, Dispatcher, F
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Update
@@ -15,9 +16,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
-Base.metadata.create_all(bind=engine)
-SessionLocal = sessionmaker(bind=engine)
+# Database connection with retry logic
+max_retries = 30
+retry_delay = 2
+engine = None
+SessionLocal = None
+
+for attempt in range(max_retries):
+    try:
+        logger.info(f"Attempting database connection (attempt {attempt + 1}/{max_retries})")
+        engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+        Base.metadata.create_all(bind=engine)
+        SessionLocal = sessionmaker(bind=engine)
+        logger.info("Database connection successful!")
+        break
+    except Exception as e:
+        if attempt < max_retries - 1:
+            logger.warning(f"Database connection failed: {e}. Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+        else:
+            logger.error(f"Failed to connect to database after {max_retries} attempts")
+            raise
 
 
 class DatabaseMiddleware:
