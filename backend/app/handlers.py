@@ -86,6 +86,10 @@ async def cmd_start(message: Message):
 @router.message()
 async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id: int):
     try:
+        # Игнорируем сообщения от самого бота
+        if message.from_user.is_bot:
+            return
+
         user = get_or_create_user(db, message.from_user.id, message.from_user.username)
 
         # Проверяем, находится ли пользователь в режиме ответа
@@ -138,7 +142,43 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                 except Exception as send_error:
                     logger.error(f"❌ Failed to send reply: {type(send_error).__name__}: {send_error}")
                     logger.error(f"Reply kwargs: {reply_kwargs}, original message thread_id: {thread.topic_id}")
-                    raise
+
+                    # Если сообщение о том, что тема не найдена, пересоздаём тему и пытаемся отправить снова
+                    if "message thread not found" in str(send_error).lower():
+                        logger.warning(f"Forum topic {thread.topic_id} not found. Attempting to recreate...")
+                        try:
+                            # Очищаем topic_id и пересоздаём тему
+                            thread.topic_id = None
+                            db.commit()
+
+                            # Создаём новую тему
+                            topic_name = db_message.sender_username or f"User{db_message.sender_telegram_id}"
+                            logger.info(f"Attempting to create new forum topic '{topic_name}' in group {group_chat_id} for reply")
+                            topic = await bot.create_forum_topic(group_chat_id, topic_name)
+                            thread.topic_id = topic.message_thread_id
+                            db.commit()
+                            logger.info(f"✅ Created new forum topic {thread.topic_id} for reply")
+                            await asyncio.sleep(1.0)
+
+                            # Обновляем reply_kwargs с новым topic_id
+                            reply_kwargs["message_thread_id"] = thread.topic_id
+
+                            # Пытаемся отправить ответ снова
+                            logger.info(f"Retrying to send reply to new topic {thread.topic_id}")
+                            if message.photo:
+                                await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=response_text, **reply_kwargs)
+                            elif message.video:
+                                await bot.send_video(group_chat_id, message.video.file_id, caption=response_text, **reply_kwargs)
+                            elif message.document:
+                                await bot.send_document(group_chat_id, message.document.file_id, caption=response_text, **reply_kwargs)
+                            else:
+                                await bot.send_message(group_chat_id, response_text, **reply_kwargs)
+                            logger.info(f"✅ Reply sent successfully to recreated forum topic")
+                        except Exception as retry_error:
+                            logger.error(f"❌ Failed to recreate forum topic or send reply retry: {type(retry_error).__name__}: {retry_error}")
+                            raise
+                    else:
+                        raise
 
                 # Удаляем пользователя из режима ответа
                 del user_states[message.from_user.id]
@@ -216,7 +256,43 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
             except Exception as send_error:
                 logger.error(f"❌ Failed to send message to group: {type(send_error).__name__}: {send_error}")
                 logger.error(f"Message kwargs: {send_kwargs}, thread_id: {thread.topic_id}")
-                raise
+
+                # Если сообщение о том, что тема не найдена, пересоздаём тему и пытаемся отправить снова
+                if "message thread not found" in str(send_error).lower():
+                    logger.warning(f"Forum topic {thread.topic_id} not found. Attempting to recreate...")
+                    try:
+                        # Очищаем topic_id и пересоздаём тему
+                        thread.topic_id = None
+                        db.commit()
+
+                        # Создаём новую тему
+                        topic_name = message.from_user.username or f"User{message.from_user.id}"
+                        logger.info(f"Attempting to create new forum topic '{topic_name}' in group {group_chat_id}")
+                        topic = await bot.create_forum_topic(group_chat_id, topic_name)
+                        thread.topic_id = topic.message_thread_id
+                        db.commit()
+                        logger.info(f"✅ Created new forum topic {thread.topic_id} for user {message.from_user.id}")
+                        await asyncio.sleep(1.0)
+
+                        # Обновляем send_kwargs с новым topic_id
+                        send_kwargs["message_thread_id"] = thread.topic_id
+
+                        # Пытаемся отправить сообщение снова
+                        logger.info(f"Retrying to send message to new topic {thread.topic_id}")
+                        if message.photo:
+                            await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=thread_text, **send_kwargs)
+                        elif message.video:
+                            await bot.send_video(group_chat_id, message.video.file_id, caption=thread_text, **send_kwargs)
+                        elif message.document:
+                            await bot.send_document(group_chat_id, message.document.file_id, caption=thread_text, **send_kwargs)
+                        else:
+                            await bot.send_message(group_chat_id, thread_text, **send_kwargs)
+                        logger.info(f"✅ Message sent successfully to new forum topic")
+                    except Exception as retry_error:
+                        logger.error(f"❌ Failed to recreate forum topic or send retry: {type(retry_error).__name__}: {retry_error}")
+                        raise
+                else:
+                    raise
 
             sent_message = await message.answer("✅ Сообщение успешно отправлено", parse_mode="HTML")
 
