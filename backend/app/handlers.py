@@ -73,6 +73,65 @@ def get_message_keyboard(message_id: int):
     return keyboard
 
 
+async def ensure_forum_topic(bot: Bot, db: Session, thread, group_chat_id: int, topic_name: str, max_attempts: int = 3):
+    """
+    Проверяет существование форум-темы и создаёт новую, если необходимо.
+    Возвращает topic_id если успешно, None если не удалось создать.
+    """
+    # Если topic_id уже есть, валидируем его лёгкой проверкой
+    if thread.topic_id:
+        try:
+            # Пробуем закрыть и снова открыть тему как проверку (no-op если уже открыта)
+            # Это лёгкая операция, которая проверит существование темы
+            logger.info(f"Validating existing topic {thread.topic_id}")
+            # Используем reopen_forum_topic — безопасная no-op если тема существует и открыта
+            await bot.reopen_forum_topic(group_chat_id, thread.topic_id)
+            logger.info(f"✅ Topic {thread.topic_id} validated successfully")
+            return thread.topic_id
+        except Exception as validate_error:
+            error_str = str(validate_error).lower()
+            if "message thread not found" in error_str or "topic_closed" in error_str or "not found" in error_str:
+                logger.warning(f"⚠️ Topic {thread.topic_id} is invalid: {validate_error}. Will recreate.")
+                thread.topic_id = None
+                db.commit()
+            else:
+                # Другая ошибка — топик возможно существует, но что-то другое не так
+                logger.warning(f"⚠️ Topic validation returned unexpected error: {validate_error}. Assuming topic exists.")
+                return thread.topic_id
+
+    # Создаём новую тему с повторными попытками
+    for attempt in range(1, max_attempts + 1):
+        try:
+            logger.info(f"Creating forum topic '{topic_name}' (attempt {attempt}/{max_attempts}) in group {group_chat_id}")
+            topic = await bot.create_forum_topic(group_chat_id, topic_name)
+
+            # Проверяем, что вернулся валидный message_thread_id
+            if not topic or not topic.message_thread_id:
+                logger.error(f"❌ create_forum_topic returned invalid result: {topic}")
+                if attempt < max_attempts:
+                    await asyncio.sleep(2.0 * attempt)
+                    continue
+                return None
+
+            thread.topic_id = topic.message_thread_id
+            db.commit()
+            logger.info(f"✅ Created forum topic {thread.topic_id} (attempt {attempt})")
+            # Даём время Telegram на регистрацию темы
+            await asyncio.sleep(1.5)
+            return thread.topic_id
+        except Exception as create_error:
+            logger.error(f"❌ Failed to create forum topic (attempt {attempt}/{max_attempts}): {type(create_error).__name__}: {create_error}")
+            if attempt < max_attempts:
+                await asyncio.sleep(2.0 * attempt)
+            else:
+                logger.error(f"❌ All {max_attempts} attempts to create forum topic failed")
+                thread.topic_id = None
+                db.commit()
+                return None
+
+    return None
+
+
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
@@ -121,6 +180,10 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                 if message.text:
                     response_text += message.text
 
+                # Проверяем и создаём тему через helper-функцию перед отправкой ответа
+                topic_name = db_message.sender_username or f"User{db_message.sender_telegram_id}"
+                await ensure_forum_topic(bot, db, thread, group_chat_id, topic_name)
+
                 # Отправляем ответ в группу
                 reply_kwargs = {"parse_mode": "HTML"}
                 if thread.topic_id:
@@ -143,28 +206,25 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                     logger.error(f"❌ Failed to send reply: {type(send_error).__name__}: {send_error}")
                     logger.error(f"Reply kwargs: {reply_kwargs}, original message thread_id: {thread.topic_id}")
 
-                    # Если сообщение о том, что тема не найдена, пересоздаём тему и пытаемся отправить снова
+                    # Если сообщение о том, что тема не найдена, пересоздаём тему через helper и пытаемся снова
                     if "message thread not found" in str(send_error).lower():
-                        logger.warning(f"Forum topic {thread.topic_id} not found. Attempting to recreate...")
+                        logger.warning(f"Forum topic {thread.topic_id} not found. Recreating via helper...")
+                        thread.topic_id = None
+                        db.commit()
+
+                        topic_name = db_message.sender_username or f"User{db_message.sender_telegram_id}"
+                        new_topic_id = await ensure_forum_topic(bot, db, thread, group_chat_id, topic_name)
+
+                        if not new_topic_id:
+                            logger.error(f"❌ Could not create new forum topic for reply")
+                            raise
+
+                        # Обновляем reply_kwargs с новым topic_id
+                        reply_kwargs["message_thread_id"] = new_topic_id
+
+                        # Пытаемся отправить ответ снова
+                        logger.info(f"Retrying to send reply to new topic {new_topic_id}")
                         try:
-                            # Очищаем topic_id и пересоздаём тему
-                            thread.topic_id = None
-                            db.commit()
-
-                            # Создаём новую тему
-                            topic_name = db_message.sender_username or f"User{db_message.sender_telegram_id}"
-                            logger.info(f"Attempting to create new forum topic '{topic_name}' in group {group_chat_id} for reply")
-                            topic = await bot.create_forum_topic(group_chat_id, topic_name)
-                            thread.topic_id = topic.message_thread_id
-                            db.commit()
-                            logger.info(f"✅ Created new forum topic {thread.topic_id} for reply")
-                            await asyncio.sleep(1.0)
-
-                            # Обновляем reply_kwargs с новым topic_id
-                            reply_kwargs["message_thread_id"] = thread.topic_id
-
-                            # Пытаемся отправить ответ снова
-                            logger.info(f"Retrying to send reply to new topic {thread.topic_id}")
                             if message.photo:
                                 await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=response_text, **reply_kwargs)
                             elif message.video:
@@ -175,10 +235,28 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                                 await bot.send_message(group_chat_id, response_text, **reply_kwargs)
                             logger.info(f"✅ Reply sent successfully to recreated forum topic")
                         except Exception as retry_error:
-                            logger.error(f"❌ Failed to recreate forum topic or send reply retry: {type(retry_error).__name__}: {retry_error}")
+                            logger.error(f"❌ Failed to send reply retry: {type(retry_error).__name__}: {retry_error}")
                             raise
                     else:
                         raise
+
+                # Отправляем ответ исходному пользователю в личное сообщение
+                try:
+                    user_response_text = f"💬 <b>Ответ на ваше сообщение</b>\n\n"
+                    if message.text:
+                        user_response_text += message.text
+
+                    if message.photo:
+                        await bot.send_photo(db_message.sender_telegram_id, message.photo[-1].file_id, caption=user_response_text, parse_mode="HTML")
+                    elif message.video:
+                        await bot.send_video(db_message.sender_telegram_id, message.video.file_id, caption=user_response_text, parse_mode="HTML")
+                    elif message.document:
+                        await bot.send_document(db_message.sender_telegram_id, message.document.file_id, caption=user_response_text, parse_mode="HTML")
+                    else:
+                        await bot.send_message(db_message.sender_telegram_id, user_response_text, parse_mode="HTML")
+                    logger.info(f"✅ Reply sent to original user {db_message.sender_telegram_id}")
+                except Exception as user_send_error:
+                    logger.error(f"❌ Failed to send reply to user {db_message.sender_telegram_id}: {type(user_send_error).__name__}: {user_send_error}")
 
                 # Удаляем пользователя из режима ответа
                 del user_states[message.from_user.id]
@@ -203,21 +281,9 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
             thread = get_or_create_thread(db, user.id, group_chat_id)
             logger.info(f"Got/created thread {thread.id} for user {user.id}, topic_id={thread.topic_id}")
 
-            # Создаём новую тему в группе если её ещё нет
-            if not thread.topic_id:
-                topic_name = message.from_user.username or f"User{message.from_user.id}"
-                try:
-                    logger.info(f"Attempting to create forum topic '{topic_name}' in group {group_chat_id}")
-                    topic = await bot.create_forum_topic(group_chat_id, topic_name)
-                    thread.topic_id = topic.message_thread_id
-                    db.commit()
-                    logger.info(f"✅ Created forum topic {thread.topic_id} for user {message.from_user.id}")
-                    # Даём время на создание топика
-                    await asyncio.sleep(1.0)
-                except Exception as e:
-                    logger.error(f"❌ Failed to create forum topic: {type(e).__name__}: {e}")
-                    logger.error(f"Group chat ID: {group_chat_id}, Topic name: {topic_name}")
-                    thread.topic_id = None
+            # Проверяем и создаём тему через helper-функцию
+            topic_name = message.from_user.username or f"User{message.from_user.id}"
+            await ensure_forum_topic(bot, db, thread, group_chat_id, topic_name)
 
             attachments = extract_attachments(message)
 
@@ -257,28 +323,25 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                 logger.error(f"❌ Failed to send message to group: {type(send_error).__name__}: {send_error}")
                 logger.error(f"Message kwargs: {send_kwargs}, thread_id: {thread.topic_id}")
 
-                # Если сообщение о том, что тема не найдена, пересоздаём тему и пытаемся отправить снова
+                # Если сообщение о том, что тема не найдена, пересоздаём тему через helper и пытаемся снова
                 if "message thread not found" in str(send_error).lower():
-                    logger.warning(f"Forum topic {thread.topic_id} not found. Attempting to recreate...")
+                    logger.warning(f"Forum topic {thread.topic_id} not found. Recreating via helper...")
+                    thread.topic_id = None
+                    db.commit()
+
+                    topic_name = message.from_user.username or f"User{message.from_user.id}"
+                    new_topic_id = await ensure_forum_topic(bot, db, thread, group_chat_id, topic_name)
+
+                    if not new_topic_id:
+                        logger.error(f"❌ Could not create new forum topic after retry")
+                        raise
+
+                    # Обновляем send_kwargs с новым topic_id
+                    send_kwargs["message_thread_id"] = new_topic_id
+
+                    # Пытаемся отправить сообщение снова
+                    logger.info(f"Retrying to send message to new topic {new_topic_id}")
                     try:
-                        # Очищаем topic_id и пересоздаём тему
-                        thread.topic_id = None
-                        db.commit()
-
-                        # Создаём новую тему
-                        topic_name = message.from_user.username or f"User{message.from_user.id}"
-                        logger.info(f"Attempting to create new forum topic '{topic_name}' in group {group_chat_id}")
-                        topic = await bot.create_forum_topic(group_chat_id, topic_name)
-                        thread.topic_id = topic.message_thread_id
-                        db.commit()
-                        logger.info(f"✅ Created new forum topic {thread.topic_id} for user {message.from_user.id}")
-                        await asyncio.sleep(1.0)
-
-                        # Обновляем send_kwargs с новым topic_id
-                        send_kwargs["message_thread_id"] = thread.topic_id
-
-                        # Пытаемся отправить сообщение снова
-                        logger.info(f"Retrying to send message to new topic {thread.topic_id}")
                         if message.photo:
                             await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=thread_text, **send_kwargs)
                         elif message.video:
@@ -289,7 +352,7 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                             await bot.send_message(group_chat_id, thread_text, **send_kwargs)
                         logger.info(f"✅ Message sent successfully to new forum topic")
                     except Exception as retry_error:
-                        logger.error(f"❌ Failed to recreate forum topic or send retry: {type(retry_error).__name__}: {retry_error}")
+                        logger.error(f"❌ Failed to send retry: {type(retry_error).__name__}: {retry_error}")
                         raise
                 else:
                     raise
