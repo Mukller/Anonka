@@ -121,15 +121,24 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                 reply_kwargs = {"parse_mode": "HTML"}
                 if thread.topic_id:
                     reply_kwargs["message_thread_id"] = thread.topic_id
-
-                if message.photo:
-                    await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=response_text, **reply_kwargs)
-                elif message.video:
-                    await bot.send_video(group_chat_id, message.video.file_id, caption=response_text, **reply_kwargs)
-                elif message.document:
-                    await bot.send_document(group_chat_id, message.document.file_id, caption=response_text, **reply_kwargs)
+                    logger.info(f"Sending reply to existing topic {thread.topic_id}")
                 else:
-                    await bot.send_message(group_chat_id, response_text, **reply_kwargs)
+                    logger.warning(f"Reply will be sent to group without topic ID (thread {thread.id} has no topic_id)")
+
+                try:
+                    if message.photo:
+                        await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=response_text, **reply_kwargs)
+                    elif message.video:
+                        await bot.send_video(group_chat_id, message.video.file_id, caption=response_text, **reply_kwargs)
+                    elif message.document:
+                        await bot.send_document(group_chat_id, message.document.file_id, caption=response_text, **reply_kwargs)
+                    else:
+                        await bot.send_message(group_chat_id, response_text, **reply_kwargs)
+                    logger.info(f"✅ Reply sent successfully")
+                except Exception as send_error:
+                    logger.error(f"❌ Failed to send reply: {type(send_error).__name__}: {send_error}")
+                    logger.error(f"Reply kwargs: {reply_kwargs}, original message thread_id: {thread.topic_id}")
+                    raise
 
                 # Удаляем пользователя из режима ответа
                 del user_states[message.from_user.id]
@@ -158,14 +167,16 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
             if not thread.topic_id:
                 topic_name = message.from_user.username or f"User{message.from_user.id}"
                 try:
+                    logger.info(f"Attempting to create forum topic '{topic_name}' in group {group_chat_id}")
                     topic = await bot.create_forum_topic(group_chat_id, topic_name)
                     thread.topic_id = topic.message_thread_id
                     db.commit()
-                    logger.info(f"Created forum topic {thread.topic_id} for user {message.from_user.id}")
+                    logger.info(f"✅ Created forum topic {thread.topic_id} for user {message.from_user.id}")
                     # Даём время на создание топика
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(1.0)
                 except Exception as e:
-                    logger.error(f"Failed to create forum topic: {e}")
+                    logger.error(f"❌ Failed to create forum topic: {type(e).__name__}: {e}")
+                    logger.error(f"Group chat ID: {group_chat_id}, Topic name: {topic_name}")
                     thread.topic_id = None
 
             attachments = extract_attachments(message)
@@ -191,14 +202,21 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
             if thread.topic_id:
                 send_kwargs["message_thread_id"] = thread.topic_id
 
-            if message.photo:
-                await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=thread_text, **send_kwargs)
-            elif message.video:
-                await bot.send_video(group_chat_id, message.video.file_id, caption=thread_text, **send_kwargs)
-            elif message.document:
-                await bot.send_document(group_chat_id, message.document.file_id, caption=thread_text, **send_kwargs)
-            else:
-                await bot.send_message(group_chat_id, thread_text, **send_kwargs)
+            try:
+                logger.info(f"Sending message to group {group_chat_id}, kwargs: {send_kwargs}")
+                if message.photo:
+                    await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=thread_text, **send_kwargs)
+                elif message.video:
+                    await bot.send_video(group_chat_id, message.video.file_id, caption=thread_text, **send_kwargs)
+                elif message.document:
+                    await bot.send_document(group_chat_id, message.document.file_id, caption=thread_text, **send_kwargs)
+                else:
+                    await bot.send_message(group_chat_id, thread_text, **send_kwargs)
+                logger.info(f"✅ Message sent successfully to group")
+            except Exception as send_error:
+                logger.error(f"❌ Failed to send message to group: {type(send_error).__name__}: {send_error}")
+                logger.error(f"Message kwargs: {send_kwargs}, thread_id: {thread.topic_id}")
+                raise
 
             sent_message = await message.answer("✅ Сообщение успешно отправлено", parse_mode="HTML")
 
