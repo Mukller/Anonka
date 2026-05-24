@@ -152,6 +152,7 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
         else:
             # Обычное новое анонимное сообщение
             thread = get_or_create_thread(db, user.id, group_chat_id)
+            logger.info(f"Got/created thread {thread.id} for user {user.id}, topic_id={thread.topic_id}")
 
             # Создаём новую тему в группе если её ещё нет
             if not thread.topic_id:
