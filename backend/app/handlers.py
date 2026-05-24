@@ -118,14 +118,18 @@ async def handle_message(message: Message, bot: Bot, db: Session, group_chat_id:
                     response_text += message.text
 
                 # Отправляем ответ в группу
+                reply_kwargs = {"parse_mode": "HTML"}
+                if thread.topic_id:
+                    reply_kwargs["message_thread_id"] = thread.topic_id
+
                 if message.photo:
-                    await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=response_text, parse_mode="HTML", message_thread_id=thread.topic_id)
+                    await bot.send_photo(group_chat_id, message.photo[-1].file_id, caption=response_text, **reply_kwargs)
                 elif message.video:
-                    await bot.send_video(group_chat_id, message.video.file_id, caption=response_text, parse_mode="HTML", message_thread_id=thread.topic_id)
+                    await bot.send_video(group_chat_id, message.video.file_id, caption=response_text, **reply_kwargs)
                 elif message.document:
-                    await bot.send_document(group_chat_id, message.document.file_id, caption=response_text, parse_mode="HTML", message_thread_id=thread.topic_id)
+                    await bot.send_document(group_chat_id, message.document.file_id, caption=response_text, **reply_kwargs)
                 else:
-                    await bot.send_message(group_chat_id, response_text, parse_mode="HTML", message_thread_id=thread.topic_id)
+                    await bot.send_message(group_chat_id, response_text, **reply_kwargs)
 
                 # Удаляем пользователя из режима ответа
                 del user_states[message.from_user.id]
