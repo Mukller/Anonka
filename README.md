@@ -4,10 +4,22 @@
 [![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/Anonka)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 
+---
+
+## Language / Язык
+
 </div>
 
-<details open>
-<summary><strong>📖 English</strong></summary>
+| **📖 English** | **📖 Русский** |
+|:---:|:---:|
+| Scroll down / Листай вниз | Листай вниз / Scroll down |
+
+---
+
+## English Version
+
+
+
 
 # 🎭 Anonka — Anonymous Telegram Bot
 
@@ -86,10 +98,12 @@ This project is licensed under the MIT License — see [LICENSE.md](LICENSE.md) 
 
 See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
-</details>
+---
 
-<details>
-<summary><strong>📖 Русский</strong></summary>
+## Русская версия
+
+
+
 
 # 🎭 Anonka — Анонимный Telegram бот
 
@@ -353,5 +367,3 @@ PR и issues приветствуются! См. [issues](https://github.com/Muk
 ---
 
 📦 **Последний релиз:** [v1.0.0](https://github.com/Mukller/Anonka/releases/tag/v1.0.0)
-
-</details>
