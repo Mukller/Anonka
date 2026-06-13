@@ -6,28 +6,8 @@
 
 </div>
 
----
-
-<input type="radio" id="lang-en" name="language" checked style="display:none;">
-<input type="radio" id="lang-ru" name="language" style="display:none;">
-
-<div style="text-align: center; margin: 20px 0;">
-  <label for="lang-en" style="display: inline-block; padding: 12px 24px; background: #58A6FF; color: white; border-radius: 6px 0 0 6px; cursor: pointer; font-weight: bold; margin-right: -4px; user-select: none;">English</label><label for="lang-ru" style="display: inline-block; padding: 12px 24px; background: #30363D; color: white; border-radius: 0 6px 6px 0; cursor: pointer; font-weight: bold; user-select: none;">Русский</label>
-</div>
-
-<style>
-  input[type="radio"] { display: none !important; }
-  #lang-en:checked ~ div.lang-en { display: block; }
-  #lang-en:checked ~ div.lang-ru { display: none; }
-  #lang-ru:checked ~ div.lang-en { display: none; }
-  #lang-ru:checked ~ div.lang-ru { display: block; }
-  .lang-en { display: block; }
-  .lang-ru { display: none; }
-</style>
-
----
-
-<div class="lang-en">
+<details open>
+<summary><strong>📖 English</strong></summary>
 ## English Version
 
 
@@ -44,80 +24,10 @@
 
 Русский • [English](README_EN.md)
 
-</div>
+</details>
 
-Telegram bot for receiving anonymous messages with support for admin replies via private forum threads.
-
-## 💡 How It Works
-
-```
-User                     Bot                    Admin Group (Forum)
-  │                       │                              │
-  │── /start ────────────►│                              │
-  │                       │                              │
-  │── "Hello!" ──────────►│── creates thread ───────────►│
-  │                       │                              │
-  │                       │── posts with button ────────►│
-  │                       │   "💬 Reply"                  │
-  │                       │                              │
-  │                       │◄────── clicks button ─────────│
-  │                       │                              │
-  │                       │◄────── writes reply in DM ────│
-  │                       │                              │
-  │◄── reply in DM ───────│── posts in thread ──────────►│
-```
-
-## ✨ Features
-
-- 📨 **Anonymous messages** — users send to DM, bot forwards to group
-- 💬 **Admin replies** — admins reply via private forum threads
-- 🔒 **Full anonymity** — user identities are never revealed
-- 🗂️ **Forum threads** — each user gets their own thread in the admin group
-- 🐳 **Docker support** — easy deployment with containerization
-- 🗄️ **Database** — MySQL/PostgreSQL for persistent data storage
-
-## 📦 Requirements
-
-- Python 3.12+
-- MySQL or PostgreSQL
-- Docker and Docker Compose (optional)
-- Telegram bot token (get from [@BotFather](https://t.me/BotFather))
-- Telegram group with forum topics enabled
-
-## 🚀 Installation
-
-```bash
-git clone https://github.com/Mukller/Anonka.git
-cd Anonka
-cp .env.example .env
-# Edit .env with your settings
-docker-compose up -d
-```
-
-## ⚙️ Configuration
-
-See `.env.example` for all available configuration options.
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
-
-## 📄 License
-
-This project is licensed under the MIT License — see [LICENSE.md](LICENSE.md) for details.
-
-## 🔐 Security
-
-See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
-
----
-
-</div>
-
-<div class=lang-ru>
-
-
-
+<details>
+<summary><strong>📖 Русский</strong></summary>
 
 ## Русская версия
 
@@ -388,3 +298,5 @@ PR и issues приветствуются! См. [issues](https://github.com/Muk
 📦 **Последний релиз:** [v1.0.0](https://github.com/Mukller/Anonka/releases/tag/v1.0.0)
 
 </div>
+
+</details>
