@@ -1,22 +1,13 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE.md)
-[![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/Anonka)
+[![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/REPO)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
-
----
-
-## Language / Язык
 
 </div>
 
-| **📖 English** | **📖 Русский** |
-|:---:|:---:|
-| Scroll down / Листай вниз | Листай вниз / Scroll down |
-
----
-
-## English Version
+<details open>
+<summary><strong>📖 English</strong></summary>## English Version
 
 
 
@@ -99,6 +90,11 @@ This project is licensed under the MIT License — see [LICENSE.md](LICENSE.md) 
 See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ---
+
+</details>
+
+<details>
+<summary><strong>📖 Русский</strong></summary>
 
 ## Русская версия
 
@@ -367,3 +363,5 @@ PR и issues приветствуются! См. [issues](https://github.com/Muk
 ---
 
 📦 **Последний релиз:** [v1.0.0](https://github.com/Mukller/Anonka/releases/tag/v1.0.0)
+
+</details>
