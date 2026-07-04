@@ -1,41 +1,8 @@
-version: '3.8'
-
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: anonka-mysql
-    command: --default-authentication-plugin=mysql_native_password
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: anonka
-    ports:
-      - "3307:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - anonka-network
-
   bot:
     build: .
     container_name: anonka-bot
-    depends_on:
-      - mysql
-    environment:
-      BOT_TOKEN: ${BOT_TOKEN}
-      GROUP_CHAT_ID: ${GROUP_CHAT_ID}
-      GROUP_TOPIC_ID: ${GROUP_TOPIC_ID}
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: rootpassword
-      DB_NAME: anonka
-    networks:
-      - anonka-network
+    network_mode: host
+    env_file:
+      - .env
     restart: unless-stopped
-
-volumes:
-  mysql_data:
-
-networks:
-  anonka-network:
-    driver: bridge
