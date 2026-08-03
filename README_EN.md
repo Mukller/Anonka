@@ -6,6 +6,13 @@
 
 # 🎭 Anonka — Anonymous Telegram Bot
 
+<p align="center">
+  <a href="https://github.com/Mukller">
+    <img src="https://img.shields.io/badge/Anton%20Petnitsky-Developer-0d1117?style=for-the-badge&logo=github&logoColor=white&labelColor=0d1117&color=58a6ff" alt="Anton Petnitsky" />
+  </a>
+</p>
+
+
 [![Release](https://img.shields.io/github/v/release/Mukller/Anonka)](https://github.com/Mukller/Anonka/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
